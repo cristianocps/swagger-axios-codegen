@@ -8,7 +8,7 @@ export interface IRequestClass {
   [key: string]: IRequestMethods[];
 }
 
-interface IRequestMethods {
+export interface IRequestMethods {
   name: string;
   operationId: string;
   requestSchema: any;

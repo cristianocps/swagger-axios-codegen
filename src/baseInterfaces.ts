@@ -1,7 +1,10 @@
+import { IRequestMethod } from "./swaggerInterfaces";
+import { IRequestMethods } from "./requestCodegen";
+
 export interface ISwaggerOptions {
   serviceNameSuffix?: string
   enumNamePrefix?: string
-  methodNameMode?: 'operationId' | 'path'
+  methodNameMode?: 'operationId' | 'path'|'custom'
   outputDir?: string
   fileName?: string
   remoteUrl?: string
@@ -10,6 +13,8 @@ export interface ISwaggerOptions {
   useCustomerRequestInstance?: boolean | undefined
   include?: Array<string | IInclude>
   format?: (s: string) => string
+  customNamingCallback?: (requestMethod:IRequestMethods )=>string
+
 }
 
 export interface IPropDef {

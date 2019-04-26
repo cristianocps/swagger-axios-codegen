@@ -1,13 +1,20 @@
 import * as fs from 'fs'
 import * as path from 'path'
-import prettier from 'prettier';
-import axios from 'axios';
+import prettier from 'prettier'
+import axios from 'axios'
 import { ISwaggerSource } from './swaggerInterfaces'
 import { definitionsCodeGen } from './definitionCodegen'
-import { enumTemplate, classTemplate, serviceHeader, customerServiceHeader, serviceTemplate, requestTemplate } from './template';
-import { requestCodegen } from './requestCodegen';
-import { ISwaggerOptions, IInclude } from './baseInterfaces';
-import { findDeepRefs } from './utils';
+import {
+  enumTemplate,
+  classTemplate,
+  serviceHeader,
+  customerServiceHeader,
+  serviceTemplate,
+  requestTemplate
+} from './template'
+import { requestCodegen } from './requestCodegen'
+import { ISwaggerOptions, IInclude } from './baseInterfaces'
+import { findDeepRefs } from './utils'
 
 const defaultOptions: ISwaggerOptions = {
   serviceNameSuffix: 'Service',
@@ -20,7 +27,6 @@ const defaultOptions: ISwaggerOptions = {
   include: []
 }
 
-
 export async function codegen(params: ISwaggerOptions) {
   console.time('finish')
   let err
@@ -29,12 +35,11 @@ export async function codegen(params: ISwaggerOptions) {
   if (params.remoteUrl) {
     const { data: swaggerJson } = await axios({ url: params.remoteUrl, responseType: 'text' })
     if (Object.prototype.toString.call(swaggerJson) === '[object String]') {
-      fs.writeFileSync('./cache_swagger.json', swaggerJson);
-      swaggerSource = require(path.resolve('./cache_swagger.json'));
+      fs.writeFileSync('./cache_swagger.json', swaggerJson)
+      swaggerSource = require(path.resolve('./cache_swagger.json'))
     } else {
       swaggerSource = <ISwaggerSource>swaggerJson
     }
-
   } else if (params.source) {
     swaggerSource = <ISwaggerSource>params.source
   } else {
@@ -45,18 +50,14 @@ export async function codegen(params: ISwaggerOptions) {
     ...defaultOptions,
     ...params
   }
-  let apiSource = options.useCustomerRequestInstance
-    ? customerServiceHeader
-    : serviceHeader
+  let apiSource = options.useCustomerRequestInstance ? customerServiceHeader : serviceHeader
   // TODO: next next next time
   // if (options.multipleFileMode) {
   if (false) {
     const { models, enums } = definitionsCodeGen(swaggerSource.definitions)
     // enums
     Object.values(enums).forEach(item => {
-      const text = item.value
-        ? enumTemplate(item.value.name, item.value.enumProps, 'Enum')
-        : item.content || ''
+      const text = item.value ? enumTemplate(item.value.name, item.value.enumProps, 'Enum') : item.content || ''
 
       const fileDir = path.join(options.outputDir || '', 'definitions')
       writeFile(fileDir, item.name + '.ts', format(text, options))
@@ -67,9 +68,7 @@ export async function codegen(params: ISwaggerOptions) {
       const fileDir = path.join(options.outputDir || '', 'definitions')
       writeFile(fileDir, item.name, format(text, options))
     })
-
-  }
-  else if (options.include && options.include.length > 0) {
+  } else if (options.include && options.include.length > 0) {
     let reqSource = ''
     let defSource = ''
     let requestClasses = Object.entries(requestCodegen(swaggerSource.paths))
@@ -89,15 +88,12 @@ export async function codegen(params: ISwaggerOptions) {
           includeClassName = k
           includeRequests = (<IInclude>item)[k]
         }
-
       }
       for (let [className, requests] of requestClasses) {
         if (includeClassName !== className) continue
         let text = ''
         for (let req of requests) {
-          const reqName = options.methodNameMode == "operationId"
-            ? req.operationId
-            : req.name
+          const reqName = options.methodNameMode == 'operationId' ? req.operationId : req.name
           if (includeRequests) {
             if (includeRequests.includes(reqName)) {
               text += requestTemplate(reqName, req.requestSchema, options)
@@ -135,17 +131,21 @@ export async function codegen(params: ISwaggerOptions) {
 
     apiSource += reqSource + defSource
     writeFile(options.outputDir || '', options.fileName || '', format(apiSource, options))
-  }
-  else {
+  } else {
     try {
-
       Object.entries(requestCodegen(swaggerSource.paths)).forEach(([className, requests]) => {
         let text = ''
         requests.forEach(req => {
-
-          const reqName = options.methodNameMode == "operationId"
-            ? req.operationId
-            : req.name
+          let reqName: string = ''
+          if (options.methodNameMode == 'custom') {
+            if (!options.customNamingCallback) {
+              throw new Error('The customNamingCallback must be provided when the methodNameMode is custom')
+            } else {
+              reqName = options.customNamingCallback(req)
+            }
+          } else {
+            reqName = options.methodNameMode == 'operationId' ? req.operationId : req.name
+          }
           text += requestTemplate(reqName, req.requestSchema, options)
         })
         text = serviceTemplate(className + options.serviceNameSuffix, text)
@@ -166,7 +166,6 @@ export async function codegen(params: ISwaggerOptions) {
         apiSource += text
       })
 
-
       writeFile(options.outputDir || '', options.fileName || '', format(apiSource, options))
     } catch (error) {
       console.log('error', error)
@@ -174,21 +173,20 @@ export async function codegen(params: ISwaggerOptions) {
     }
   }
   if (fs.existsSync('./cache_swagger.json')) {
-    fs.unlinkSync('./cache_swagger.json');
+    fs.unlinkSync('./cache_swagger.json')
   }
   console.timeEnd('finish')
   if (err) {
-    throw err;
+    throw err
   }
 }
 
-
 function writeFile(fileDir: string, name: string, data: any) {
   if (!fs.existsSync(fileDir)) {
-    fs.mkdirSync(fileDir);
+    fs.mkdirSync(fileDir)
   }
   const filename = path.join(fileDir, name)
-  console.log('filename', filename);
+  console.log('filename', filename)
   fs.writeFileSync(filename, data)
 }
 
@@ -199,12 +197,12 @@ function format(text: string, options: ISwaggerOptions) {
   }
   console.log('use default formatter')
   return prettier.format(text, {
-    "printWidth": 120,
-    "tabWidth": 2,
-    "parser": "typescript",
-    "trailingComma": "none",
-    "jsxBracketSameLine": false,
-    "semi": true,
-    "singleQuote": true
+    printWidth: 120,
+    tabWidth: 2,
+    parser: 'typescript',
+    trailingComma: 'none',
+    jsxBracketSameLine: false,
+    semi: true,
+    singleQuote: true
   })
 }
