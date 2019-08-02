@@ -24,6 +24,7 @@ const defaultOptions: ISwaggerOptions = {
   fileName: 'index.ts',
   useStaticMethod: true,
   useCustomerRequestInstance: false,
+  perClassFile: false,
   include: []
 }
 
@@ -109,14 +110,17 @@ export async function codegen(params: ISwaggerOptions) {
         }
 
         text = serviceTemplate(className + options.serviceNameSuffix, text)
-        reqSource += text
+        if (options.perClassFile)
+          writeFile(options.outputDir, `${className + options.serviceNameSuffix}.ts`, format(text, options))
+        else reqSource += text
       }
     })
 
     allModel.forEach(item => {
       if (allImport.includes(item.name)) {
         const text = classTemplate(item.value.name, item.value.props, [])
-        defSource += text
+        if (options.perClassFile) writeFile(options.outputDir, item.value.name, format(text, options))
+        else defSource += text
       }
     })
 
@@ -125,7 +129,9 @@ export async function codegen(params: ISwaggerOptions) {
         const text = item.value
           ? enumTemplate(item.value.name, item.value.enumProps, options.enumNamePrefix)
           : item.content || ''
-        defSource += text
+
+        if (options.perClassFile) writeFile(options.outputDir, `${item.value.name}.ts`, format(text, options))
+        else defSource += text
       }
     })
 
@@ -149,21 +155,25 @@ export async function codegen(params: ISwaggerOptions) {
           text += requestTemplate(reqName, req.requestSchema, options)
         })
         text = serviceTemplate(className + options.serviceNameSuffix, text)
-        apiSource += text
+        if (options.perClassFile)
+          writeFile(options.outputDir, `${className + options.serviceNameSuffix}.ts`, format(text, options))
+        else apiSource += text
       })
 
       const { models, enums } = definitionsCodeGen(swaggerSource.definitions)
 
       Object.values(models).forEach(item => {
         const text = classTemplate(item.value.name, item.value.props, [])
-        apiSource += text
+        if (options.perClassFile) writeFile(options.outputDir, `${item.value.name}.ts`, format(text, options))
+        else apiSource += text
       })
 
       Object.values(enums).forEach(item => {
         const text = item.value
           ? enumTemplate(item.value.name, item.value.enumProps, options.enumNamePrefix)
           : item.content || ''
-        apiSource += text
+        if (options.perClassFile) writeFile(options.outputDir, `${item.value.name}.ts`, format(text, options))
+        else apiSource += text
       })
 
       writeFile(options.outputDir || '', options.fileName || '', format(apiSource, options))
