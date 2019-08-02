@@ -15,6 +15,7 @@ import {
 import { requestCodegen } from './requestCodegen'
 import { ISwaggerOptions, IInclude } from './baseInterfaces'
 import { findDeepRefs } from './utils'
+import { getRequestParameters } from './requestCodegen/getRequestParameters'
 
 const defaultOptions: ISwaggerOptions = {
   serviceNameSuffix: 'Service',
@@ -24,7 +25,8 @@ const defaultOptions: ISwaggerOptions = {
   fileName: 'index.ts',
   useStaticMethod: true,
   useCustomerRequestInstance: false,
-  perClassFile: false,
+  interfacesInsteadOfClasses: false,
+  multipleFileMode: false,
   include: []
 }
 
@@ -54,8 +56,11 @@ export async function codegen(params: ISwaggerOptions) {
   let apiSource = options.useCustomerRequestInstance ? customerServiceHeader : serviceHeader
   // TODO: next next next time
   // if (options.multipleFileMode) {
-  if (false) {
+  if (options.multipleFileMode) {
     const { models, enums } = definitionsCodeGen(swaggerSource.definitions)
+
+    writeFile(options.outputDir, 'Defaults.ts', format(apiSource, options))
+
     // enums
     Object.values(enums).forEach(item => {
       const text = item.value ? enumTemplate(item.value.name, item.value.enumProps, 'Enum') : item.content || ''
@@ -67,7 +72,40 @@ export async function codegen(params: ISwaggerOptions) {
     Object.values(models).forEach(item => {
       const text = classTemplate(item.value.name, item.value.props, item.value.imports)
       const fileDir = path.join(options.outputDir || '', 'definitions')
-      writeFile(fileDir, item.name, format(text, options))
+      writeFile(fileDir, `${item.name}.ts`, format(text, options))
+    })
+
+    Object.entries(requestCodegen(swaggerSource.paths)).forEach(([className, requests]) => {
+      let text = ''
+      let serviceImports: any[] = []
+      requests.forEach(req => {
+        serviceImports.push(...req.requestSchema.parsedParameters.imports)
+
+        let reqName: string = ''
+        if (options.methodNameMode == 'custom') {
+          if (!options.customNamingCallback) {
+            throw new Error('The customNamingCallback must be provided when the methodNameMode is custom')
+          } else {
+            reqName = options.customNamingCallback(req)
+          }
+        } else {
+          reqName = options.methodNameMode == 'operationId' ? req.operationId : req.name
+        }
+        text += requestTemplate(reqName, req.requestSchema, options)
+      })
+
+      text = serviceTemplate(
+        className + options.serviceNameSuffix,
+        text,
+        serviceImports
+          .filter(value => {
+            return (value as string).toLowerCase() !== 'object'
+          })
+          .filter((value, index) => {
+            return serviceImports.indexOf(value) >= index
+          })
+      )
+      writeFile(options.outputDir, `${className + options.serviceNameSuffix}.ts`, format(text, options))
     })
   } else if (options.include && options.include.length > 0) {
     let reqSource = ''
@@ -110,17 +148,14 @@ export async function codegen(params: ISwaggerOptions) {
         }
 
         text = serviceTemplate(className + options.serviceNameSuffix, text)
-        if (options.perClassFile)
-          writeFile(options.outputDir, `${className + options.serviceNameSuffix}.ts`, format(text, options))
-        else reqSource += text
+        reqSource += text
       }
     })
 
     allModel.forEach(item => {
       if (allImport.includes(item.name)) {
         const text = classTemplate(item.value.name, item.value.props, [])
-        if (options.perClassFile) writeFile(options.outputDir, item.value.name, format(text, options))
-        else defSource += text
+        defSource += text
       }
     })
 
@@ -130,8 +165,7 @@ export async function codegen(params: ISwaggerOptions) {
           ? enumTemplate(item.value.name, item.value.enumProps, options.enumNamePrefix)
           : item.content || ''
 
-        if (options.perClassFile) writeFile(options.outputDir, `${item.value.name}.ts`, format(text, options))
-        else defSource += text
+        defSource += text
       }
     })
 
@@ -155,25 +189,22 @@ export async function codegen(params: ISwaggerOptions) {
           text += requestTemplate(reqName, req.requestSchema, options)
         })
         text = serviceTemplate(className + options.serviceNameSuffix, text)
-        if (options.perClassFile)
-          writeFile(options.outputDir, `${className + options.serviceNameSuffix}.ts`, format(text, options))
-        else apiSource += text
+        apiSource += text
       })
 
       const { models, enums } = definitionsCodeGen(swaggerSource.definitions)
 
       Object.values(models).forEach(item => {
         const text = classTemplate(item.value.name, item.value.props, [])
-        if (options.perClassFile) writeFile(options.outputDir, `${item.value.name}.ts`, format(text, options))
-        else apiSource += text
+
+        apiSource += text
       })
 
       Object.values(enums).forEach(item => {
         const text = item.value
           ? enumTemplate(item.value.name, item.value.enumProps, options.enumNamePrefix)
           : item.content || ''
-        if (options.perClassFile) writeFile(options.outputDir, `${item.value.name}.ts`, format(text, options))
-        else apiSource += text
+        apiSource += text
       })
 
       writeFile(options.outputDir || '', options.fileName || '', format(apiSource, options))

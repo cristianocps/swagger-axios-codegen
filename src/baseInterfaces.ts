@@ -9,12 +9,13 @@ export interface ISwaggerOptions {
   fileName?: string
   remoteUrl?: string
   source?: any
+  interfacesInsteadOfClasses?: boolean
   useStaticMethod?: boolean | undefined
   useCustomerRequestInstance?: boolean | undefined
   include?: Array<string | IInclude>
   format?: (s: string) => string
   customNamingCallback?: (requestMethod: IRequestMethods) => string
-  perClassFile?: boolean
+  multipleFileMode?: boolean
 }
 
 export interface IPropDef {

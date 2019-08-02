@@ -1,25 +1,39 @@
 import camelcase from 'camelcase'
-import { IPropDef } from "./baseInterfaces";
-
+import { IPropDef } from './baseInterfaces'
 
 /** 类模板 */
-export function classTemplate(name: string, props: IPropDef[], imports: string[]) {
-  return `
-  ${imports.map(imp => {
-    return `import { ${imp} } from '../definitions/${imp}'\n`
-  }).join('')}
+export function classTemplate(name: string, props: IPropDef[], imports: string[], interfaceInsteadOfClass?: boolean) {
+  const importsContent = imports
+    .filter((value, index) => imports.indexOf(value) >= index)
+    .map(imp => {
+      return `import { ${imp} } from './${imp}'\n`
+    })
+    .join('')
+  if (interfaceInsteadOfClass) {
+    return `
+  ${importsContent}
 
-  export class ${name} {
+  export interface ${name} {
 
     ${props.map(p => classPropsTemplate(p.name, p.type, p.desc)).join('')}
-
-    constructor(data?:any){
-      if(data){
-        ${props.map(p => classConstructorTemplate(p.name)).join('')}
-      }
-    }
   }
   `
+  } else {
+    return `
+    ${importsContent}
+  
+    export class ${name} {
+  
+      ${props.map(p => classPropsTemplate(p.name, p.type, p.desc)).join('')}
+  
+      constructor(data?:any){
+        if(data){
+          ${props.map(p => classConstructorTemplate(p.name)).join('')}
+        }
+      }
+    }
+    `
+  }
 }
 /** 类属性模板 */
 export function classPropsTemplate(name: string, type: string, description: string) {
@@ -31,7 +45,7 @@ export function classPropsTemplate(name: string, type: string, description: stri
 
 /** 类属性模板 */
 export function classConstructorTemplate(name: string) {
-  return `this['${name}'] = data['${name}'];\n`
+  return `this.${name} = data['${name}'];\n`
 }
 
 /** 枚举 */
@@ -75,7 +89,9 @@ export function requestTemplate(name: string, requestSchema: IRequestSchema, opt
 /**
  * ${summary || ''}
  */
-${options.useStaticMethod ? 'static' : ''} ${camelcase(name)}(${parameters}options:IRequestOptions={}):Promise<${responseType}> {
+${options.useStaticMethod ? 'static' : ''} ${camelcase(
+    name
+  )}(${parameters}options:IRequestOptions={}):Promise<${responseType}> {
   return new Promise((resolve, reject) => {
     const configs:IRequestConfig = {...options, method: "${method}" };
     configs.headers = {
@@ -85,14 +101,8 @@ ${options.useStaticMethod ? 'static' : ''} ${camelcase(name)}(${parameters}optio
     let url = '${path}'
     ${pathReplace}
     configs.url = url
-    ${parsedParameters && queryParameters.length > 0
-      ? 'configs.params = {' + queryParameters.join(',') + '}'
-      : ''
-    }
-    let data = ${parsedParameters && bodyParameters.length > 0
-      ? '{' + bodyParameters.join(',') + '}'
-      : 'null'
-    }
+    ${parsedParameters && queryParameters.length > 0 ? 'configs.params = {' + queryParameters.join(',') + '}' : ''}
+    let data = ${parsedParameters && bodyParameters.length > 0 ? '{' + bodyParameters.join(',') + '}' : 'null'}
     ${contentType === 'multipart/form-data' ? formData : ''}
     configs.data = data;
     axios(configs).then(res => {
@@ -101,12 +111,20 @@ ${options.useStaticMethod ? 'static' : ''} ${camelcase(name)}(${parameters}optio
       reject(err);
     });
   });
-}`;
+}`
 }
 
 /** serviceTemplate */
-export function serviceTemplate(name: string, body: string) {
+export function serviceTemplate(name: string, body: string, imports?: any[]) {
   return `
+  ${imports.length > 0 ? 'import {IRequestOptions,IRequestConfig,ServiceOptions,axios} from "./Defaults"' : ''}
+  ${imports
+    .filter((value, index) => imports.indexOf(value) >= index)
+    .map(imp => {
+      if (imp !== '') return `import { ${imp} } from './definitions/${imp}'\n`
+      else return ''
+    })
+    .join('')}
   export class ${name} {
     ${body}
   }
@@ -120,7 +138,7 @@ export interface IRequestOptions {
   headers?: any;
 }
 
-interface IRequestConfig {
+export interface IRequestConfig {
   method?: any;
   headers?: any;
   url?: any;
@@ -138,7 +156,7 @@ export const serviceOptions: ServiceOptions = {
 };
 
 // Instance selector
-function axios(configs: IRequestConfig): AxiosPromise {
+export function axios(configs: IRequestConfig): AxiosPromise {
   return serviceOptions.axios? serviceOptions.axios.request(configs) : axiosStatic(configs);
 }
 `
@@ -149,9 +167,9 @@ export interface IRequestOptions {
   headers?: any;
 }
 
-interface IRequestPromise<T=any> extends Promise<IRequestResponse<T>> {}
+export interface IRequestPromise<T=any> extends Promise<IRequestResponse<T>> {}
 
-interface IRequestResponse<T=any> {
+export interface IRequestResponse<T=any> {
   data: T;
   status: number;
   statusText: string;
@@ -160,7 +178,7 @@ interface IRequestResponse<T=any> {
   request?: any;
 }
 
-interface IRequestInstance {
+export interface IRequestInstance {
   (config: any): IRequestPromise;
   (url: string, config?: any): IRequestPromise;
   request<T = any>(config: any): IRequestPromise<T>;
